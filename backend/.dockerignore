@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+dist
+uploads
+.env
+.env.local
+*.log
+.git
+.gitignore
+README.md
+tests
+*.test.ts
+tsconfig.json
