@@ -190,10 +190,6 @@ export default function QuantPage() {
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [runningStrategy, setRunningStrategy] = useState(false);
   const [creatingInstance, setCreatingInstance] = useState(false);
-  const [testingOrder, setTestingOrder] = useState(false);
-  const [testOrderDirection, setTestOrderDirection] = useState<'long' | 'short'>('long');
-  const [testOrderMessage, setTestOrderMessage] = useState<string | null>(null);
-  const [testOrderError, setTestOrderError] = useState<string | null>(null);
   const [contractCostHint, setContractCostHint] = useState<{
     price?: number;
     multiplier?: number;
@@ -484,45 +480,6 @@ const loadStatuses = async () => {
       setStrategyError(error?.response?.data?.message || '创建策略实例失败');
     } finally {
       setCreatingInstance(false);
-    }
-  };
-
-  const handleTestOrder = async () => {
-    if (!quantStatus?.gate?.isConnected) {
-      setTestOrderError('请先连接 Gate API 凭证');
-      return;
-    }
-    const trimmedContract = strategyConfig.contract.trim();
-    if (!trimmedContract) {
-      setTestOrderError('请填写合约标识，例如 BTC_USDT');
-      return;
-    }
-    const normalizedContracts = Math.max(1, Math.floor(Number(strategyConfig.baseSize) || 1));
-    setTestOrderError(null);
-    setTestOrderMessage(null);
-    setTestingOrder(true);
-    try {
-      const directionMultiplier = testOrderDirection === 'long' ? 1 : -1;
-      const sizeValue = (directionMultiplier * normalizedContracts).toString();
-      const order = await quantService.createGateOrder({
-        settle: strategyConfig.settle,
-        contract: trimmedContract,
-        size: sizeValue,
-        price: '0',
-        tif: 'ioc',
-        reduceOnly: false,
-      });
-      const orderId = order?.id || order?.order_id || order?.text || '';
-      setTestOrderMessage(
-        `测试市价单已提交（${testOrderDirection === 'long' ? '做多' : '做空'} · ${normalizedContracts} 张${
-          orderId ? `，订单号 ${orderId}` : ''
-        }）`
-      );
-    } catch (error: any) {
-      console.error('测试下单失败', error);
-      setTestOrderError(error?.response?.data?.message || '测试下单失败');
-    } finally {
-      setTestingOrder(false);
     }
   };
 
