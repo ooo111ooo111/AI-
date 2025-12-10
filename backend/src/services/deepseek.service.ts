@@ -1,10 +1,19 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+import { ANALYSIS_SCHEMA_DESCRIPTION } from '../constants/analysisSchema';
+import { parseModelJson } from '../utils/jsonParser';
+
+// DeepSeek 服务同样依赖环境变量,确保 .env 已被读取
+dotenv.config();
 
 // 使用 OpenAI SDK 连接 DeepSeek API
 // 注意：OpenAI SDK 会自动查找 OPENAI_API_KEY，所以我们延迟初始化
 let openaiClient: OpenAI | null = null;
+
+const DEEPSEEK_MODEL = 'deepseek-chat';
 
 const getOpenAIClient = () => {
   if (!openaiClient) {
@@ -111,7 +120,7 @@ export const analyzeChartImage = async (
 
     // 调用 DeepSeek API（文本模式，包含 Base64 图像数据）
     const response = await openai.chat.completions.create({
-      model: 'deepseek-chat',  // DeepSeek 的聊天模型
+      model: DEEPSEEK_MODEL,  // DeepSeek 的聊天模型
       messages: [
         {
           role: 'user',
@@ -124,17 +133,13 @@ export const analyzeChartImage = async (
 
     // 解析响应
     const responseText = response.choices[0]?.message?.content || '';
-
-    // 提取JSON（可能包含在代码块中）
-    let jsonText = responseText.trim();
-    const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) ||
-                     jsonText.match(/```\s*([\s\S]*?)\s*```/);
-
-    if (jsonMatch) {
-      jsonText = jsonMatch[1];
-    }
-
-    const result: AnalysisResult = JSON.parse(jsonText);
+    const result = await parseModelJson<AnalysisResult>({
+      rawText: responseText,
+      client: openai,
+      model: DEEPSEEK_MODEL,
+      schemaDescription: ANALYSIS_SCHEMA_DESCRIPTION,
+      loggerPrefix: 'DeepSeek'
+    });
 
     // 验证和标准化数据
     if (!['bullish', 'bearish', 'neutral'].includes(result.trend)) {

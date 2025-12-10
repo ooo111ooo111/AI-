@@ -13,9 +13,6 @@ export default function LoadingSpinner({ message = '分析中，请稍候...' }:
           </div>
           <div className="text-center">
             <p className="text-lg font-medium mb-1">{message}</p>
-            <p className="text-sm text-gray-500">
-              AI 正在分析图表，这可能需要几秒钟
-            </p>
           </div>
         </div>
       </div>

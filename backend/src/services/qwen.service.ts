@@ -1,9 +1,17 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+import { ANALYSIS_SCHEMA_DESCRIPTION } from '../constants/analysisSchema';
+import { parseModelJson } from '../utils/jsonParser';
+
+// 由于本服务需要依赖 API Key,确保优先加载 .env
+dotenv.config();
 
 // 使用 OpenAI SDK 连接阿里云 DashScope API (Qwen3-VL-Flash)
 let openaiClient: OpenAI | null = null;
+const QWEN_MODEL = 'qwen3-vl-flash';
 
 const getOpenAIClient = () => {
   if (!openaiClient) {
@@ -119,11 +127,122 @@ interface AnalysisResult {
   recommendation: string;
   riskLevel: 'low' | 'medium' | 'high';
   timeframe?: string;
+  strategyDetails?: {
+    name: string;
+    description: string;
+    holdingPeriod: string;
+    keyIndicators: string[];
+  };
+}
+
+// 获取长线策略的分析提示词
+function getLongTermPrompt(symbol: string): string {
+  return `你是一位经验丰富的加密货币量化交易分析师,专注于长线交易策略(持仓周期:数周到数月)。请仔细分析这张 ${symbol} 的K线图/走势图。
+
+【长线交易策略要点】
+- 趋势跟随策略(海龟交易法则):顺应市场长期趋势,不预测顶部和底部
+- 均值回归策略:价格长期会回到均值
+- 基本面驱动:结合宏观经济、供需关系、政策等
+
+【长线关键指标】
+- 50日/200日均线系统(金叉/死叉)
+- MACD长期趋势
+- ADX趋势强度
+- 布林带长期通道
+- 成交量长期趋势
+
+请按照以下JSON格式返回分析结果(仅返回JSON,不要其他文字):
+
+{
+  "trend": "bullish/bearish/neutral",
+  "confidence": 0-100的数字,
+  "keyLevels": {
+    "support": [长期支撑位价格数组,从强到弱],
+    "resistance": [长期阻力位价格数组,从强到弱]
+  },
+  "indicators": {
+    "rsi": RSI数值(如50.5,图表不可见则省略),
+    "macd": "MACD长期趋势:金叉/死叉/多头/空头",
+    "volume": "成交量长期趋势分析",
+    "movingAverages": "50日/200日均线系统:多头排列/空头排列/金叉/死叉"
+  },
+  "analysis": "详细的长线技术分析(400字以内),包括:\\n1. 长期趋势判断(周线/月线形态)\\n2. 主要趋势是否延续,是否接近趋势反转点\\n3. 50日/200日均线系统分析\\n4. 长期支撑阻力的历史有效性\\n5. 基本面因素(市场情绪、政策、供需等)",
+  "recommendation": "长线操作建议(纯文本字符串),包含:\\n\\n【交易策略】趋势跟随/均值回归/基本面驱动\\n\\n【交易方向】看多/看空/观望,说明理由\\n\\n【入场策略】\\n- 建议入场价位:$具体价格(基于长期支撑/突破确认)\\n- 入场时机:突破200日均线/回踩50日均线企稳/其他条件\\n- 仓位配置:长线建议总资金的30-60%(风险中低的长期持仓)\\n- 分批建仓:建议分3-5批入场,降低波动风险\\n\\n【止损策略】\\n- 止损价位:$具体价格(通常设在50日或200日均线下方5-10%)\\n- 止损理由:跌破该位置说明长期趋势已破坏\\n- 单笔最大亏损:不超过总资金的5-8%\\n\\n【止盈策略】\\n- 目标位1:$具体价格(第一个长期阻力位),减仓20-30%\\n- 目标位2:$具体价格(次级阻力位),减仓30-40%\\n- 目标位3:$具体价格(终极目标),剩余仓位\\n- 长期持有:若趋势延续,可持有数周到数月,移动止损保护利润\\n\\n【风险提示】\\n- 长线交易需耐心,避免短期波动影响判断\\n- 关注宏观经济、政策、供需等基本面变化\\n- 定期复盘,趋势破坏时果断止损",
+  "riskLevel": "low/medium/high",
+  "timeframe": "识别的长期时间周期(4h/1d/1w等)",
+  "strategyDetails": {
+    "name": "具体策略名称(如:趋势跟随策略(海龟交易法则))",
+    "description": "策略简要说明",
+    "holdingPeriod": "数周到数月",
+    "keyIndicators": ["50日均线", "200日均线", "MACD", "ADX", "布林带"]
+  }
+}
+
+分析要求:
+1. 专注长期趋势,忽略短期波动
+2. 支撑阻力位必须是历史上多次验证的长期关键位
+3. 止损止盈策略要留足空间,避免被短期波动扫损
+4. 仓位管理要稳健,强调分批建仓和长期持有
+5. recommendation必须是纯文本字符串,使用\\n换行
+6. 突出长线交易的耐心和纪律性`;
+}
+
+// 获取短线策略的分析提示词
+function getShortTermPrompt(symbol: string): string {
+  return `你是一位经验丰富的加密货币量化交易分析师,专注于短线交易策略(持仓周期:数分钟到数天)。请仔细分析这张 ${symbol} 的K线图/走势图。
+
+【短线交易策略要点】
+- 日内交易:利用价格短期波动,严格止损止盈
+- 高频剥头皮:捕捉超短期微小波动
+- 摆动交易:抓取几天内的波段
+
+【短线关键指标】
+- RSI超买超卖(>70超买,<30超卖)
+- 短期均线(5日/10日/20日)
+- K线形态(锤子线、十字星、吞没等)
+- 支撑阻力位(日内关键价位)
+- 成交量短期放量/缩量
+
+请按照以下JSON格式返回分析结果(仅返回JSON,不要其他文字):
+
+{
+  "trend": "bullish/bearish/neutral",
+  "confidence": 0-100的数字,
+  "keyLevels": {
+    "support": [短期支撑位价格数组,从强到弱],
+    "resistance": [短期阻力位价格数组,从强到弱]
+  },
+  "indicators": {
+    "rsi": RSI数值(如50.5,图表不可见则省略),
+    "macd": "MACD短期信号:金叉/死叉/多头/空头",
+    "volume": "成交量短期变化:放量/缩量/价量背离",
+    "movingAverages": "短期均线:5日/10日/20日金叉/死叉"
+  },
+  "analysis": "详细的短线技术分析(300字以内),包括:\\n1. 短期趋势判断(日线/4小时形态)\\n2. 日内关键K线形态(锤子线、吞没、十字星等)\\n3. RSI超买超卖信号\\n4. 短期支撑阻力的有效性\\n5. 成交量确认(放量突破/缩量回调)",
+  "recommendation": "短线操作建议(纯文本字符串),包含:\\n\\n【交易策略】日内交易/剥头皮/摆动交易\\n\\n【交易方向】看多/看空/观望,说明理由\\n\\n【入场策略】\\n- 建议入场价位:$具体价格(基于短期支撑/突破确认)\\n- 入场时机:突破阻力/回踩支撑/K线反转信号\\n- 仓位配置:短线建议总资金的10-30%(高风险20%以内,中风险30%以内)\\n- 快速入场:短线讲究时效,信号出现后迅速执行\\n\\n【止损策略】\\n- 止损价位:$具体价格(通常设在入场价下方2-5%)\\n- 止损理由:跌破该位置说明短期信号失效\\n- 单笔最大亏损:不超过总资金的1-3%\\n\\n【止盈策略】\\n- 目标位1:$具体价格(第一个短期阻力位),减仓50%\\n- 目标位2:$具体价格(次级阻力位),剩余仓位止盈\\n- 快速止盈:短线以快进快出为主,达到目标迅速离场\\n- 移动止损:价格有利时,快速上移止损至成本价保护利润\\n\\n【风险提示】\\n- 短线交易需盯盘,及时止损止盈\\n- 避免贪婪,达到目标果断离场\\n- 严格控制单笔亏损,连续亏损时暂停交易\\n- 关注突发消息和市场情绪波动",
+  "riskLevel": "low/medium/high",
+  "timeframe": "识别的短期时间周期(1m/5m/15m/1h/4h等)",
+  "strategyDetails": {
+    "name": "具体策略名称(如:日内交易策略)",
+    "description": "策略简要说明",
+    "holdingPeriod": "数分钟到数天",
+    "keyIndicators": ["RSI", "5日均线", "10日均线", "K线形态", "支撑阻力"]
+  }
+}
+
+分析要求:
+1. 专注短期机会,关注日内/4小时/日线级别
+2. 支撑阻力位必须是近期有效的短期关键位
+3. 止损止盈要精准,避免扫损但也要快速离场
+4. 仓位管理要灵活,强调快进快出
+5. recommendation必须是纯文本字符串,使用\\n换行
+6. 突出短线交易的时效性和纪律性`;
 }
 
 export const analyzeChartImage = async (
   imagePath: string,
   symbol: string,
+  strategyType: 'long-term' | 'short-term' = 'short-term',
   providedBase64?: string
 ): Promise<AnalysisResult> => {
   try {
@@ -157,57 +276,14 @@ export const analyzeChartImage = async (
       imageUrl = `data:${mimeType};base64,${base64Image}`;
     }
 
-    // 构建分析提示词（优化版：包含止盈止损和仓位管理）
-    const prompt = `你是一位经验丰富的加密货币量化交易分析师和风险管理专家。请仔细分析这张 ${symbol} 的K线图/走势图，并提供专业的技术分析和完整的交易策略。
-
-请按照以下JSON格式返回分析结果（仅返回JSON，不要其他文字）：
-
-{
-  "trend": "bullish/bearish/neutral",
-  "confidence": 0-100的数字,
-  "keyLevels": {
-    "support": [支撑位价格数组，从强到弱排序],
-    "resistance": [阻力位价格数组，从强到弱排序]
-  },
-  "indicators": {
-    "rsi": RSI数值（数字类型，如50.5；如果图表中不可见则省略此字段），
-    "macd": "MACD状态：金叉/死叉/多头/空头，柱状图变化（如果不可见则写'数据不可见'）",
-    "volume": "成交量分析：放量/缩量/价量配合情况（如果不可见则写'数据不可见'）",
-    "movingAverages": "均线系统：多头排列/空头排列/金叉/死叉（如果不可见则写'数据不可见'）"
-  },
-  "analysis": "详细的技术分析（300字以内），包括：\\n1. 当前趋势判断和理由（K线形态、均线系统）\\n2. 关键价位分析（支撑阻力的强弱）\\n3. 技术指标综合判断（RSI超买超卖、MACD动能、成交量确认）\\n4. 潜在风险点和机会",
-  "recommendation": "完整的操作建议（纯文本字符串），必须包含以下要点：\\n\\n【交易方向】看多/看空/观望，说明理由\\n\\n【入场策略】\\n- 建议入场价位：$具体价格（基于关键支撑/阻力）\\n- 入场时机：突破确认/回调企稳/其他条件\\n- 仓位配置：建议总资金的X%（根据风险等级：高风险10-20%，中风险20-40%，低风险40-60%）\\n- 分批建仓：可分2-3批入场，避免追高/杀跌\\n\\n【止损策略】\\n- 止损价位：$具体价格（通常设在关键支撑/阻力下方3-5%）\\n- 止损理由：跌破该位置说明分析失效\\n- 单笔最大亏损：不超过总资金的X%（通常1-3%）\\n\\n【止盈策略】\\n- 目标位1：$具体价格（首个阻力位），建议减仓30-50%\\n- 目标位2：$具体价格（次级阻力位），建议减仓30-40%\\n- 目标位3：$具体价格（终极目标），剩余仓位\\n- 移动止盈：价格上涨后，将止损位上移至成本价或盈利保护位\\n\\n【风险提示】\\n- 注意重大消息面影响\\n- 关注市场整体情绪\\n- 严格执行止损，避免侥幸心理",
-  "riskLevel": "low/medium/high",
-  "timeframe": "识别出的时间周期（1m/5m/15m/1h/4h/1d/1w等）"
-}
-
-重要提示：
-1. recommendation 字段必须是一个格式化的纯文本字符串，使用 \\n 换行符
-2. 不要将 recommendation 写成 JSON 对象或嵌套结构
-3. 所有内容必须在字符串中使用中文和符号格式化
-
-分析要求：
-1. trend 只能是 bullish（看涨）、bearish（看跌）或 neutral（中性）
-2. confidence 是你对趋势判断的信心程度（0-100），基于多个指标的一致性
-3. keyLevels 必须提供具体价格数值，支撑和阻力位各2-3个
-4. indicators 中的数据必须从图表中准确识别：
-   - rsi 必须是纯数字（如 45.2），如果图表不可见则省略该字段（不要返回 null 或字符串）
-   - 其他指标如不可见则写"数据不可见"
-5. analysis 必须逻辑严密，多维度分析（趋势+形态+指标+成交量）
-6. recommendation 必须是纯文本字符串，包含完整的交易计划：入场、止损、止盈、仓位管理
-7. riskLevel 判断标准：
-   - high：技术形态不明确、指标背离、成交量异常、波动率大
-   - medium：技术形态较清晰、指标基本一致、成交量正常
-   - low：技术形态明确、多指标共振、趋势强劲、成交量确认
-8. 止损位必须基于技术位（关键支撑/阻力、均线、前高/低）
-9. 止盈位必须分批设置，至少2个目标位
-10. 仓位比例必须与风险等级匹配，避免过度杠杆
-
-记住：你的分析将直接影响真实资金的交易决策，必须严谨、保守、注重风险控制！`;
+    // 构建分析提示词(根据策略类型选择)
+    const prompt = strategyType === 'long-term'
+      ? getLongTermPrompt(symbol)
+      : getShortTermPrompt(symbol);
 
     // 调用阿里云 DashScope API（Qwen3-VL-Flash）
     const response = await openai.chat.completions.create({
-      model: 'qwen3-vl-flash',  // 速度快、成本低的 Qwen3-VL 模型
+      model: QWEN_MODEL,  // 速度快、成本低的 Qwen3-VL 模型
       messages: [
         {
           role: 'user',
@@ -232,17 +308,13 @@ export const analyzeChartImage = async (
 
     // 解析响应
     const responseText = response.choices[0]?.message?.content || '';
-
-    // 提取 JSON（可能包含在代码块中）
-    let jsonText = responseText.trim();
-    const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/) ||
-                     jsonText.match(/```\s*([\s\S]*?)\s*```/);
-
-    if (jsonMatch) {
-      jsonText = jsonMatch[1];
-    }
-
-    const result: AnalysisResult = JSON.parse(jsonText);
+    const result = await parseModelJson<AnalysisResult>({
+      rawText: responseText,
+      client: openai,
+      model: QWEN_MODEL,
+      schemaDescription: ANALYSIS_SCHEMA_DESCRIPTION,
+      loggerPrefix: 'Qwen3-VL'
+    });
 
     // 验证和标准化数据
     if (!['bullish', 'bearish', 'neutral'].includes(result.trend)) {

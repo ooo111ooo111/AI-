@@ -59,28 +59,40 @@ export default function ResultPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dark-bg">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       {/* 顶部导航 */}
-      <div className="border-b border-dark-border bg-dark-card">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="border-b border-gray-700 bg-gray-900/95 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/history')}
             className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
           >
-            <span>←</span>
-            <span>返回首页</span>
+            <span className="text-xl">←</span>
+            <span>返回历史</span>
           </button>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-          >
-            新建分析
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/history')}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              查看历史
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg transition-colors font-medium"
+            >
+              <span className="flex items-center gap-2">
+                新建分析
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 分析结果 */}
-      <AnalysisResult analysis={analysis} imageUrl={analysis.imageUrl} />
+      <div className="max-w-7xl mx-auto">
+        <AnalysisResult analysis={analysis} imageUrl={analysis.imageUrl} />
+      </div>
     </div>
   );
 }

@@ -1,15 +1,42 @@
 # AI 加密货币走势分析系统
 
-基于 Claude AI 的加密货币图表智能分析系统，用户上传 K 线图或走势图，AI 自动识别技术指标并预测趋势。
+基于 Qwen3-VL-Flash 的加密货币图表智能分析系统,用户上传 K 线图或走势图,AI 自动识别技术指标并预测趋势。
 
 ## 项目概览
 
 ### 核心功能
-- 📸 **图片上传**：支持拖拽或点击上传 K 线图（JPG/PNG/WEBP）
-- 🤖 **AI 分析**：DeepSeek 图像识别和技术分析
-- 📊 **趋势预测**：看涨/看跌/中性，附带置信度评分
-- 📈 **技术指标**：自动识别 RSI、MACD、成交量、均线等
-- 💾 **历史记录**：保存分析结果，支持查询和统计
+- 📸 **图片上传**: 支持拖拽或点击上传 K 线图(JPG/PNG/WEBP)
+- 🤖 **AI 分析**: Qwen3-VL-Flash 图像识别和技术分析
+- 📊 **趋势预测**: 看涨/看跌/中性,附带置信度评分
+- 📈 **技术指标**: 自动识别 RSI、MACD、成交量、均线等
+- 💾 **历史记录**: 保存分析结果,支持查询和统计
+- 🎯 **策略选择**: 支持长线和短线交易策略,针对合约交易优化
+- 🔐 **邀请码权限**: 登录后必须验证邀请码才能解锁量化/实盘功能
+- 🤖 **Gate 量化控制台**: 调用 Gate Futures API,查看合约&仓位并下发策略委托
+- 🕹️ **行情看图面板**: 独立页面选择合约并查看 TradingView K 线
+- 🛠️ **管理后台**: 指定管理员邮箱可查看所有注册用户及邀请码使用情况
+
+### ✨ 新功能: 长短线策略
+
+本系统现已支持针对**合约交易**的长线和短线策略选择:
+
+- **长线策略(Long-term)**: 数周到数月,趋势跟随、均值回归、基本面驱动
+  - 关键指标: 50日/200日均线、MACD、ADX、布林带
+  - 代表: 海龟交易法则、均值回归策略
+
+- **短线策略(Short-term)**: 数分钟到数天,日内交易、剥头皮、摆动交易
+  - 关键指标: RSI、短期均线、K线形态、支撑阻力
+  - 代表: 日内交易、高频交易、摆动交易
+
+📖 **详细策略指南**: 查看 [STRATEGY_GUIDE.md](./STRATEGY_GUIDE.md)
+
+### Gate 量化策略库
+
+- **Sai Scalper Pro**: 高频动量剥头皮策略, 依赖分位阈值捕捉极端波动
+- **均值回归 (Mean Reversion)**: 适合震荡行情, 以 Z-Score 判断回归空间
+- **单均线趋势 (SMA Trend)**: 以单条简单移动均线跟随趋势, 价格相对均线的百分比偏离即为触发条件
+- **RSI 摆动 (RSI Swing)**: 依据 RSI 超买超卖区域捕捉反转, 默认 30/70 阈值, 适合震荡区间短线
+- **UT Bot Alerts**: ATR 追踪止损的趋势策略, 支持 Heikin Ashi 平滑源 
 
 ### 技术栈
 
@@ -48,7 +75,20 @@ npm install
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入 DeepSeek API Key 和 MongoDB URI
+# 编辑 .env，填入 DeepSeek API Key、MongoDB URI、默认邀请码等
+# 示例：
+# DEEPSEEK_API_KEY=sk-xxx
+# MONGODB_URI=mongodb://localhost:27017/crypto_analysis
+# DEFAULT_INVITE_CODE=VIP888
+# GATE_API_BASE_URL=https://api.gateio.ws/api/v4
+# FRONTEND_URL=http://localhost:5173
+# GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+# GOOGLE_CLIENT_SECRET=xxx
+# GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+# QQ_APP_ID=xxxxxxx
+# QQ_APP_KEY=xxxxx
+# QQ_CALLBACK_URL=http://localhost:3000/api/auth/qq/callback
+# ADMIN_EMAILS=admin@example.com
 
 # 启动后端
 npm run dev
@@ -103,23 +143,29 @@ AI交易分析/
 
 ## API 文档
 
+> ⚠️ 量化接口需要登录 + 邀请码验证,未授权用户仅可访问分析/币种接口。
+
 ### 分析接口
 
 #### POST /api/analyses
 上传图片并分析
 
-**请求**：
+**请求**:
 - Content-Type: multipart/form-data
 - Body:
-  - `image`: 图片文件（必填）
-  - `symbol`: 币种符号（必填，如 BTC, ETH）
+  - `image`: 图片文件(必填)
+  - `symbol`: 币种符号(必填,如 BTC, ETH)
+  - `strategyType`: 策略类型(可选,默认 `short-term`)
+    - `long-term`: 长线策略
+    - `short-term`: 短线策略
 
-**响应**：
+**响应**:
 ```json
 {
   "_id": "...",
   "symbol": "BTC",
   "imageUrl": "/uploads/xxx.png",
+  "strategyType": "long-term",
   "trend": "bullish",
   "confidence": 85,
   "keyLevels": {
@@ -129,22 +175,33 @@ AI交易分析/
   "indicators": {
     "rsi": 65,
     "macd": "多头排列",
-    "volume": "成交量放大"
+    "volume": "成交量放大",
+    "movingAverages": "50日均线上穿200日均线(金叉)"
   },
   "analysis": "详细分析...",
   "recommendation": "操作建议...",
   "riskLevel": "medium",
-  "createdAt": "2025-12-05T10:00:00.000Z"
+  "timeframe": "1d",
+  "strategyDetails": {
+    "name": "趋势跟随策略(海龟交易法则)",
+    "description": "顺应市场长期趋势,不预测顶部和底部",
+    "holdingPeriod": "数周到数月",
+    "keyIndicators": ["50日均线", "200日均线", "MACD", "ADX", "布林带"]
+  },
+  "createdAt": "2025-12-06T10:00:00.000Z"
 }
 ```
 
 #### GET /api/analyses
 获取分析历史列表
 
-**查询参数**：
-- `page`: 页码（默认 1）
-- `limit`: 每页数量（默认 10）
-- `symbol`: 筛选币种（可选）
+**查询参数**:
+- `page`: 页码(默认 1)
+- `limit`: 每页数量(默认 10)
+- `symbol`: 筛选币种(可选)
+- `strategyType`: 筛选策略类型(可选)
+  - `long-term`: 仅返回长线策略分析
+  - `short-term`: 仅返回短线策略分析
 
 #### GET /api/analyses/:id
 获取单条分析详情
@@ -155,10 +212,76 @@ AI交易分析/
 #### GET /api/analyses/stats
 获取统计数据
 
+#### GET /api/analyses/quota/daily
+返回当前登录用户的 AI 分析额度。如果未填写邀请码则 `limit=10`，超过后接口会返回 `remaining=0`，需要先验证邀请码才能继续使用。
+
 ### 币种接口
 
 #### GET /api/symbols
 获取支持的币种列表
+
+### 邀请码接口
+
+#### GET /api/invitations/status
+查看当前账户的邀请码使用情况,返回 `hasAccess`、`invitationCode`、`grantedAt` 以及邀请码备注/剩余次数。
+
+#### POST /api/invitations/redeem
+提交 `{ "code": "XXXX" }` 以验证邀请码。若开启 `DEFAULT_INVITE_CODE`, 没有预置数据时会自动创建该邀请码记录。
+
+### Gate 量化接口
+
+#### GET /api/quant/status
+返回量化权限状态及 Gate 凭证是否已连接。
+
+#### POST /api/quant/gate/credentials
+保存 Gate API Key/Secret/Passphrase。建议使用只读或独立子账号。
+
+#### DELETE /api/quant/gate/credentials
+删除已保存的 Gate 凭证,立即阻断私有接口访问。
+
+#### GET /api/quant/gate/contracts?settle=usdt&contract=BTC_USDT
+根据结算货币和合约标识查询单个 Gate 合约详情(标记价、资金费率、乘数等)。行情看图页面和下单前的校验都依赖此接口。
+
+#### GET /api/quant/gate/account?settle=usdt
+返回账户权益、维持保证金率、持仓保证金等核心资产字段(需 Gate 凭证)。
+
+#### GET /api/quant/gate/positions?settle=usdt
+返回当前全部仓位,包含合约、数量、杠杆、标记价、盈亏等信息。
+
+#### POST /api/quant/gate/orders
+向 Gate Futures 发起委托。请求体示例:
+
+```json
+{
+  "settle": "usdt",
+  "contract": "BTC_USDT",
+  "size": "1",
+  "price": 65000,
+  "tif": "gtc",
+  "reduceOnly": false,
+  "close": false,
+  "stpAct": "cn"
+}
+```
+
+> ⚠️ Gate API Key 必须已开启期货读写权限。强烈建议为本系统创建独立子账号,并启用 IP 白名单。
+
+### 管理接口
+
+#### GET /api/admin/users
+需要管理员身份(通过 `ADMIN_EMAILS` 设置)。返回所有注册用户及其邮箱、登录方式、邀请码激活状态、创建/最近登录时间。
+
+#### GET /api/admin/invitations
+支持分页查询邀请码列表,可使用 `code`(模糊匹配) 和 `status=active|inactive` 过滤。
+
+#### DELETE /api/admin/invitations/:id
+删除单个邀请码。
+
+#### GET /api/admin/invitations/export
+根据当前筛选条件导出 CSV/Excel 文件。
+
+#### POST /api/admin/invitations/generate
+管理员批量生成邀请码。请求体支持 `prefix`、`count`(1-50)、`length`(4-16)、`maxRedemptions`、`expiresAt`、`description` 等字段，响应返回新生成的邀请码数组。
 
 ## 支持的币种
 

@@ -2,6 +2,10 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
+import dotenv from 'dotenv';
+
+// 确保在使用上传配置前加载环境变量
+dotenv.config();
 
 // 确保上传目录存在
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';

@@ -1,4 +1,23 @@
 import type { Analysis } from '../types';
+import { API_BASE_URL } from '../services/api';
+
+const assetBaseUrl = API_BASE_URL.replace(/\/api$/, '');
+
+export const resolveImageUrl = (imageUrl: string): string => {
+  const trimmed = imageUrl?.trim();
+  if (!trimmed) return '';
+
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return `${assetBaseUrl}${trimmed}`;
+  }
+
+  return `${assetBaseUrl}/${trimmed}`;
+};
 
 export const getTrendColor = (trend: Analysis['trend']): string => {
   const colors = {

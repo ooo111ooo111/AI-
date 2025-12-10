@@ -38,4 +38,14 @@ export const analysisService = {
     const response = await api.get<StatsResponse>('/analyses/stats');
     return response.data;
   },
+
+  getDailyQuota: async (): Promise<{ hasAccess: boolean; used: number; limit: number | null; remaining: number | null }> => {
+    const response = await api.get('/analyses/quota/daily');
+    return response.data;
+  },
+
+  getUserSymbols: async (): Promise<string[]> => {
+    const response = await api.get<{ symbols: string[] }>('/analyses/symbols');
+    return response.data.symbols;
+  },
 };

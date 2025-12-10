@@ -58,7 +58,6 @@ export default function UploadZone({ onFileSelect, selectedFile }: UploadZonePro
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="text-5xl">📊</div>
             <div>
               <p className="text-lg mb-2">
                 {isDragActive ? '释放以上传图片' : '拖拽图片到这里，或点击选择'}

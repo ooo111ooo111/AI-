@@ -2,8 +2,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IAnalysis extends Document {
   symbol: string;
-  imagePath: string;
-  imageUrl: string;
+  imagePath?: string;  // 本地存储模式下的文件路径(OSS模式下可选)
+  imageUrl: string;    // 图片URL(本地或OSS)
   trend: 'bullish' | 'bearish' | 'neutral';
   confidence: number;
   keyLevels: {
@@ -20,6 +20,16 @@ export interface IAnalysis extends Document {
   recommendation: string;
   riskLevel: 'low' | 'medium' | 'high';
   timeframe?: string;
+  strategyType: 'long-term' | 'short-term';
+  strategyDetails?: {
+    name: string;
+    description: string;
+    holdingPeriod: string;
+    keyIndicators: string[];
+  };
+  meta?: {
+    ownerId?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,7 +44,7 @@ const AnalysisSchema = new Schema<IAnalysis>(
     },
     imagePath: {
       type: String,
-      required: true
+      required: false  // OSS模式下不需要本地路径
     },
     imageUrl: {
       type: String,
@@ -74,7 +84,22 @@ const AnalysisSchema = new Schema<IAnalysis>(
       enum: ['low', 'medium', 'high'],
       required: true
     },
-    timeframe: String
+    timeframe: String,
+    strategyType: {
+      type: String,
+      enum: ['long-term', 'short-term'],
+      required: true,
+      default: 'short-term'
+    },
+    strategyDetails: {
+      name: String,
+      description: String,
+      holdingPeriod: String,
+      keyIndicators: [String]
+    },
+    meta: {
+      ownerId: String
+    }
   },
   { timestamps: true }
 );
@@ -82,5 +107,6 @@ const AnalysisSchema = new Schema<IAnalysis>(
 // 索引
 AnalysisSchema.index({ symbol: 1, createdAt: -1 });
 AnalysisSchema.index({ createdAt: -1 });
+AnalysisSchema.index({ 'meta.ownerId': 1, createdAt: -1 });
 
 export default mongoose.model<IAnalysis>('Analysis', AnalysisSchema);

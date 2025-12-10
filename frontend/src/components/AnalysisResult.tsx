@@ -5,6 +5,7 @@ import {
   getTrendLabel,
   getRiskColor,
   getRiskLabel,
+  resolveImageUrl,
 } from '../utils/helpers';
 
 interface AnalysisResultProps {
@@ -13,12 +14,7 @@ interface AnalysisResultProps {
 }
 
 export default function AnalysisResult({ analysis, imageUrl }: AnalysisResultProps) {
-  // 修复：从 VITE_API_URL 中移除 /api 后缀，用于访问静态资源
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-  const baseUrl = apiUrl.replace(/\/api$/, ''); // 移除 /api 后缀
-
-  // 构建完整的图片 URL
-  const fullImageUrl = `${baseUrl}${imageUrl}`;
+  const fullImageUrl = resolveImageUrl(imageUrl);
 
   // 格式化操作建议，识别结构化内容
   const formatRecommendation = (text: string) => {
@@ -166,7 +162,7 @@ export default function AnalysisResult({ analysis, imageUrl }: AnalysisResultPro
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className={`px-3 py-1 rounded-full text-sm border ${getTrendBgColor(analysis.trend)}`}>
                 {getTrendLabel(analysis.trend)}
               </span>
@@ -180,6 +176,43 @@ export default function AnalysisResult({ analysis, imageUrl }: AnalysisResultPro
               )}
             </div>
           </div>
+
+          {/* 策略信息 */}
+          {analysis.strategyDetails && (
+            <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-5">
+              <h3 className="text-lg font-semibold mb-4 text-blue-400 flex items-center gap-2">
+                <span className="text-2xl">{analysis.strategyType === 'long-term' ? '📈' : '⚡'}</span>
+                {analysis.strategyType === 'long-term' ? '长线策略' : '短线策略'}
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">策略名称</p>
+                  <p className="text-base font-semibold text-gray-200">{analysis.strategyDetails.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">策略描述</p>
+                  <p className="text-sm text-gray-300">{analysis.strategyDetails.description}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">持仓周期</p>
+                  <p className="text-sm text-gray-300">{analysis.strategyDetails.holdingPeriod}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">关键指标</p>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.strategyDetails.keyIndicators.map((indicator, index) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                      >
+                        {indicator}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 技术指标 */}
           {analysis.indicators && Object.keys(analysis.indicators).length > 0 && (

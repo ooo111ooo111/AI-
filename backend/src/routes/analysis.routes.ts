@@ -4,14 +4,20 @@ import {
   getAnalyses,
   getAnalysisById,
   deleteAnalysis,
-  getStats
+  getStats,
+  getDailyQuota,
+  getUserSymbols
 } from '../controllers/analysis.controller';
 import { upload } from '../middleware/upload';
+import { requireAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
 // 创建分析（上传图片）
-router.post('/', upload.single('image'), createAnalysis);
+router.post('/', requireAuth, upload.single('image'), createAnalysis);
+
+router.get('/quota/daily', requireAuth, getDailyQuota);
+router.get('/symbols', requireAuth, getUserSymbols);
 
 // 获取分析列表
 router.get('/', getAnalyses);
